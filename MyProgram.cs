@@ -183,10 +183,23 @@ namespace MultiBoid {
 
 /* To Do:
 
-Implement Multithreading
+V Implement Multithreading
 
 Proper boid simulation
 	Revamp C/S/A calcs
+
+Visualize delays
+	Export values to excel somehow
+	From Creating Threads
+	From Waiting on Threads
+	From main thread computation
+	From rendering
+
+Automatic test
+	Range of thread count
+	Range of boid Count
+
+
 
 Rendering Optimizations
 	Re-use canvas for rendering
