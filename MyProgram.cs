@@ -25,6 +25,9 @@ using System.Diagnostics;*/
 
 namespace MultiBoid {
 	public class MyProgram {
+		const int boidCount = 100;//800
+		const int threadCount = 1;
+
 		static public MyProgram? myInstance;
 		public static void MyMain(MainWindow window) {
 			myInstance = new MyProgram(window);
@@ -41,14 +44,11 @@ namespace MultiBoid {
 		Stopwatch stopwatch = new Stopwatch();
 
 		void Start() {
-			//Populate with boids
-			const int count = 800;
 			Random rand = new Random();
-			for (int i = 0; i < count; i++) {
+			for (int i = 0; i < boidCount; i++) {
 				boidPos.Add(new Vector(rand.Next((int)window.Width), rand.Next((int)window.Height)));
 				boidVel.Add(new Vector(rand.Next(50), rand.Next(50)));
 			}
-			Debug.WriteLine("WIDTH: " + window.Width + "HEIGHT: " + window.Height);
 			stopwatch.Start();
 			Update();
 		}
@@ -58,7 +58,7 @@ namespace MultiBoid {
 		}
 
 		int frame = 0;
-		int frameRatio = 4;
+		int frameRatio = 1;
 
 		void Update() {
 			while (true) {
@@ -89,46 +89,68 @@ namespace MultiBoid {
 
 		void Tick(float dT) {
 			Debug.WriteLine(String.Format("Tickrate: {0}; Delay: {1}", 1/dT, dT*1000));
+			var outVel = new List<Vector>(new Vector[boidVel.Count]);
+			int atIndex = 0;
+			int threadSize = threadCount >= 0 ? boidCount / (threadCount + 1) : 0;
+			List<Thread> workerThreads = new List<Thread>();
+
+			//Start worker threads
+			var t0 = DateTime.Now;
+			for (int i = 0; i < threadCount; i++) {
+				int a = atIndex, b = (atIndex + threadSize);
+				workerThreads.Add(new Thread(new ThreadStart(() => Phys(a, b))));
+				workerThreads[i].Name = "Worker thread " + i;
+				workerThreads[i].Start();
+				atIndex += threadSize;
+			}
+			Debug.WriteLine("ThreadCreate: " + (DateTime.Now - t0).TotalMilliseconds);
+
+			//Main thread works too
+			Phys(atIndex, outVel.Count);
+
+			//Await all threads
+			var t = DateTime.Now;
+			foreach (var thread in workerThreads)
+				thread.Join();
+			Debug.WriteLine("ThreadWait: " + (DateTime.Now - t).TotalMilliseconds);
+			Debug.WriteLine("TickWait: " + (DateTime.Now - t0).TotalMilliseconds);
+
+
+			//Replace boidVel with outVel
+
+			boidVel = outVel;
+
 			for (int i = 0; i < boidPos.Count; i++) {
-				//Calculate boid forces
-
-
-				/*
-				Coherence - steer towards others
-				Seperation - steer away from others when too close
-				Alignment - steer torwards velocity of others
-				*/
-
-				//C - 100% is looking right at the target
-
-				float C = 0.001f;
-				float S = 1f;
-				float A = 0.01f;
-				float B = 5f; //Barrier force
-
-				for (int j = 0; j < boidPos.Count; j++) {
-					if (i == j)
-						continue;
-
-					Vector dir = (boidPos[j] - boidPos[i]);
-
-					boidVel[i] = boidVel[i].Rotate((dir.Angle - boidVel[i].Angle) * C * dT);// / dir.Length);
-					//boidVel[i] += dir * C * dT;
-
-					if (dir.Length <= 10)
-						boidVel[i] = boidVel[i].Rotate((-dir.Angle - boidVel[i].Angle) * S * dT / dir.Length);
-					/*float repDist = 10;
-					if (dir.Length <= repDist)
-						boidVel[i] -= dir.Normalized * (float)Math.Pow((repDist - dir.Length),2) * S * dT;*/
-
-					boidVel[i] = boidVel[i].Rotate((boidVel[j].Angle - boidVel[i].Angle) * A * dT / dir.Length);
-					//boidVel[i] += ((boidVel[i] * (1 - A) + boidVel[j] * A) - boidVel[i]) * dT;
-				}
-
 				//Update position
 				boidPos[i] += boidVel[i] * dT;
-
 				boidPos[i] = new Vector(boidPos[i].x % (float)window.Width, boidPos[i].y % (float)window.Height);
+			}
+
+
+			void Phys(int start, int end) {
+				for (int i = start; i < end; i++) {
+					float C = 0.001f;
+					float S = 1f;
+					float A = 0.01f;
+					float B = 5f; //Barrier force
+					Vector myVel = new Vector(boidVel[i]);
+
+					for (int j = 0; j < boidPos.Count; j++) {
+						if (i == j)
+							continue;
+						Vector dir = (boidPos[j] - boidPos[i]);
+
+						myVel = myVel.Rotate((dir.Angle - myVel.Angle) * C * dT);
+
+						if (dir.Length <= 10)
+							myVel = myVel.Rotate((-dir.Angle - myVel.Angle) * S * dT / dir.Length);
+
+						myVel = myVel.Rotate((boidVel[j].Angle - myVel.Angle) * A * dT / dir.Length);
+					}
+
+					//Update velocity
+					outVel[i] = myVel;
+				}
 			}
 		}
 
@@ -161,6 +183,8 @@ namespace MultiBoid {
 
 /* To Do:
 
+Implement Multithreading
+
 Proper boid simulation
 	Revamp C/S/A calcs
 
@@ -168,8 +192,6 @@ Rendering Optimizations
 	Re-use canvas for rendering
 
 Memory Leak?
-
-Implement Multithreading
 
 Simulation Optimizations
 	Quad tree / limit visual range
