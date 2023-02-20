@@ -5,7 +5,7 @@ using System.Threading;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
-
+using System.IO;
 /*
 using System;
 using System.Collections.Generic;
@@ -25,8 +25,8 @@ using System.Diagnostics;*/
 
 namespace MultiBoid {
 	public class MyProgram {
-		const int boidCount = 100;//800
-		const int threadCount = 1;
+		int boidCount = 100;//800
+		int threadCount = 1;
 
 		static public MyProgram? myInstance;
 		public static void MyMain(MainWindow window) {
@@ -50,6 +50,9 @@ namespace MultiBoid {
 				boidVel.Add(new Vector(rand.Next(50), rand.Next(50)));
 			}
 			stopwatch.Start();
+
+			TestBracket((100, 1600, 200), (0, 6, 2), 90);
+
 			Update();
 		}
 
@@ -72,30 +75,57 @@ namespace MultiBoid {
 					break;
 				}
 			}
+		}
 
-			float fixTickrate(int targetTickrate) {
-				long targetDelay = 1000 / ((targetTickrate != 0) ? targetTickrate : 1);//Turn 1/s into ms
-				long fixDelay = targetDelay - stopwatch.ElapsedMilliseconds;
+		void TestBracket((int lB, int uB, int inc) BoidRange, (int lB, int uB, int inc) ThreadRange, int ticks) {
+			//(int, int, int) => lowerBound, upperBound (exclusive), increment
 
-				if (targetTickrate> 0 && fixDelay > 0)
-					Thread.Sleep((int)fixDelay);
+			var data = "";
+			for (int i = BoidRange.lB; i < BoidRange.uB; i += BoidRange.inc) {
+				data += "\nBoids: " + i + "; Threads: delay (ms):\n";
+				for (int j = ThreadRange.lB; j < ThreadRange.uB; j += ThreadRange.inc)
+					data += j + ": " + Test(i, j, ticks) + ", ";
+			}
 
-				float dT = stopwatch.ElapsedMilliseconds / 1000f;
-				stopwatch.Restart();
-				
-				return dT;
+			//Write data to file
+			StreamWriter SW = new StreamWriter("MultiBoidData.txt");
+			SW.Write(data);
+			SW.Dispose();
+			throw new Exception("Finished Test");//Better way to exit?
+
+			double Test(int BoidCount, int ThreadCount, int ticks) {
+				//Initilize
+				boidCount = BoidCount;
+				threadCount = ThreadCount;
+				boidPos.Clear();
+				boidVel.Clear();
+				Random rand = new Random();
+				for (int i = 0; i < BoidCount; i++) {
+					boidPos.Add(new Vector(rand.Next((int)window.Width), rand.Next((int)window.Height)));
+					boidVel.Add(new Vector(rand.Next(50), rand.Next(50)));
+				}
+
+				//Warmup
+				for (int i = 0; i < ticks; i++)
+					Tick(0.03f);
+
+				//Main Test
+				var t0 = DateTime.Now;
+				for (int i = 0; i < ticks; i++)
+					Tick(0.03f);
+				return (DateTime.Now - t0).TotalMilliseconds / ticks;
 			}
 		}
 
 		void Tick(float dT) {
-			Debug.WriteLine(String.Format("Tickrate: {0}; Delay: {1}", 1/dT, dT*1000));
+			//Debug.WriteLine(String.Format("Tickrate: {0}; Delay: {1}", 1/dT, dT*1000));
 			var outVel = new List<Vector>(new Vector[boidVel.Count]);
 			int atIndex = 0;
 			int threadSize = threadCount >= 0 ? boidCount / (threadCount + 1) : 0;
 			List<Thread> workerThreads = new List<Thread>();
 
 			//Start worker threads
-			var t0 = DateTime.Now;
+			//var t0 = DateTime.Now;
 			for (int i = 0; i < threadCount; i++) {
 				int a = atIndex, b = (atIndex + threadSize);
 				workerThreads.Add(new Thread(new ThreadStart(() => Phys(a, b))));
@@ -103,17 +133,17 @@ namespace MultiBoid {
 				workerThreads[i].Start();
 				atIndex += threadSize;
 			}
-			Debug.WriteLine("ThreadCreate: " + (DateTime.Now - t0).TotalMilliseconds);
+			//Debug.WriteLine("ThreadCreate: " + (DateTime.Now - t0).TotalMilliseconds);
 
 			//Main thread works too
 			Phys(atIndex, outVel.Count);
 
 			//Await all threads
-			var t = DateTime.Now;
+			//var t = DateTime.Now;
 			foreach (var thread in workerThreads)
 				thread.Join();
-			Debug.WriteLine("ThreadWait: " + (DateTime.Now - t).TotalMilliseconds);
-			Debug.WriteLine("TickWait: " + (DateTime.Now - t0).TotalMilliseconds);
+			//Debug.WriteLine("ThreadWait: " + (DateTime.Now - t).TotalMilliseconds);
+			//Debug.WriteLine("TickWait: " + (DateTime.Now - t0).TotalMilliseconds);
 
 
 			//Replace boidVel with outVel
@@ -178,8 +208,38 @@ namespace MultiBoid {
 				canvas.Children.Add(myEllipse);
 			}
 		}
+
+		float fixTickrate(int targetTickrate) {
+			long targetDelay = 1000 / ((targetTickrate != 0) ? targetTickrate : 1);//Turn 1/s into ms
+			long fixDelay = targetDelay - stopwatch.ElapsedMilliseconds;
+
+			if (targetTickrate > 0 && fixDelay > 0)
+				Thread.Sleep((int)fixDelay);
+
+			float dT = stopwatch.ElapsedMilliseconds / 1000f;
+			stopwatch.Restart();
+
+			return dT;
+		}
 	}
 }
+
+
+/* Tests:
+
+Test(BoidCount, ThreadCount):
+	Instantiate
+	Run for x ticks (warmup)
+	Start recording
+	Run for y ticks
+	Save average tickrate
+
+TestBracket(BoidRange, ThreadRange):
+	For BoidRange, ThreadRange
+		Test()
+	Export data to .txt https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/file-system/how-to-write-to-a-text-file
+
+*/
 
 /* To Do:
 
@@ -188,18 +248,18 @@ V Implement Multithreading
 Proper boid simulation
 	Revamp C/S/A calcs
 
-Visualize delays
-	Export values to excel somehow
+X Visualize delays
+	V Export values to excel somehow
 	From Creating Threads
 	From Waiting on Threads
 	From main thread computation
 	From rendering
 
-Automatic test
+V Automatic test
 	Range of thread count
 	Range of boid Count
 
-
+//--Low Priority--//
 
 Rendering Optimizations
 	Re-use canvas for rendering
