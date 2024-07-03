@@ -6,26 +6,10 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.IO;
-/*
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
-using System.Diagnostics;*/
 
 namespace MultiBoid {
 	public class MyProgram {
-		int boidCount = 100;//800
+		int boidCount = 100;
 		int threadCount = 1;
 
 		static public MyProgram? myInstance;
@@ -50,9 +34,9 @@ namespace MultiBoid {
 				boidVel.Add(new Vector(rand.Next(50), rand.Next(50)));
 			}
 			stopwatch.Start();
-
-			TestBracket((100, 1600, 200), (0, 6, 2), 90);
-
+			Console.WriteLine("Running simulation...");
+			Console.WriteLine("Measuring average time per tick.");
+			TestBracket((100, 1200, 500), (0, 5, 2), 90);
 			Update();
 		}
 
@@ -83,8 +67,11 @@ namespace MultiBoid {
 			var data = "";
 			for (int i = BoidRange.lB; i < BoidRange.uB; i += BoidRange.inc) {
 				data += "\nBoids: " + i + "; Threads: delay (ms):\n";
-				for (int j = ThreadRange.lB; j < ThreadRange.uB; j += ThreadRange.inc)
+				Console.Write("\n  Boids: " + i + "\n");
+				for (int j = ThreadRange.lB; j < ThreadRange.uB; j += ThreadRange.inc) {
 					data += j + ": " + Test(i, j, ticks) + ", ";
+					Console.Write(j + " threads: " + Math.Round(Test(i, j, ticks), 2) + "ms, ");
+				}
 			}
 
 			//Write data to file
@@ -237,7 +224,7 @@ Test(BoidCount, ThreadCount):
 TestBracket(BoidRange, ThreadRange):
 	For BoidRange, ThreadRange
 		Test()
-	Export data to .txt https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/file-system/how-to-write-to-a-text-file
+	Export data to .txt
 
 */
 
